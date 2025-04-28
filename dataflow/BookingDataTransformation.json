@@ -10,21 +10,28 @@
 						"type": "DatasetReference"
 					},
 					"name": "BookingData"
+				},
+				{
+					"dataset": {
+						"referenceName": "BookingsFactDataSynpase",
+						"type": "DatasetReference"
+					},
+					"name": "SynapseForLookup"
 				}
 			],
 			"sinks": [],
 			"transformations": [
 				{
-					"name": "BadRecords"
+					"name": "DataQualityCheck"
 				},
 				{
 					"name": "DerivedColumns"
 				},
 				{
-					"name": "lookup1"
+					"name": "LookupInSynapse"
 				},
 				{
-					"name": "alterRow1"
+					"name": "AlterRowForUpdate"
 				},
 				{
 					"name": "select1"
@@ -50,9 +57,32 @@
 				"     changeFeedStartFromTheBeginning: false,",
 				"     format: 'document',",
 				"     systemColumns: false) ~> BookingData",
+				"source(output(",
+				"          booking_id as string,",
+				"          property_id as string,",
+				"          customer_id as integer,",
+				"          owner_id as string,",
+				"          check_in_date as date,",
+				"          check_out_date as date,",
+				"          booking_date as timestamp,",
+				"          amount as double,",
+				"          currency as string,",
+				"          city as string,",
+				"          country as string,",
+				"          full_address as string,",
+				"          stay_duration as long,",
+				"          booking_year as integer,",
+				"          booking_month as integer,",
+				"          timestamp as timestamp",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table',",
+				"     staged: true) ~> SynapseForLookup",
 				"BookingData split(check_out_date<check_in_date,",
-				"     disjoint: true) ~> BadRecords@(BadRecords, AcceptedRecords)",
-				"BadRecords@AcceptedRecords derive(stay_duration = ( toTimestamp(check_out_date) - toTimestamp(check_in_date) )/ 86400000,",
+				"     disjoint: true) ~> DataQualityCheck@(BadRecords, AcceptedRecords)",
+				"DataQualityCheck@AcceptedRecords derive(stay_duration = ( toTimestamp(check_out_date) - toTimestamp(check_in_date) )/ 86400000,",
 				"          booking_year = year(booking_date),",
 				"          booking_month = month(booking_date),",
 				"          full_address = concat(property_location.city, property_location.country),",
@@ -68,12 +98,13 @@
 				"          property_id = property_id,",
 				"          amount = amount,",
 				"          currency = currency) ~> DerivedColumns",
-				"DerivedColumns lookup(ERROR_FUNCTION('') == ERROR_FUNCTION(''),",
+				"DerivedColumns, SynapseForLookup lookup(DerivedColumns@booking_id == SynapseForLookup@booking_id,",
 				"     multiple: false,",
-				"     pickup: 'any',",
-				"     broadcast: 'auto')~> lookup1",
-				"lookup1 alterRow() ~> alterRow1",
-				"alterRow1 select(skipDuplicateMapInputs: true,",
+				"     pickup: 'first',",
+				"     desc(SynapseForLookup@timestamp, true),",
+				"     broadcast: 'auto')~> LookupInSynapse",
+				"LookupInSynapse alterRow() ~> AlterRowForUpdate",
+				"AlterRowForUpdate select(skipDuplicateMapInputs: true,",
 				"     skipDuplicateMapOutputs: true) ~> select1"
 			]
 		}
