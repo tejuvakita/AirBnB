@@ -91,7 +91,7 @@
 				"     validateSchema: false,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
 				"     format: 'table',",
-				"     staged: true) ~> SynapseForLookup",
+				"     staged: false) ~> SynapseForLookup",
 				"BookingData split(check_out_date<check_in_date,",
 				"     disjoint: true) ~> DataQualityCheck@(BadRecords, AcceptedRecords)",
 				"DataQualityCheck@AcceptedRecords derive(stay_duration = ( toTimestamp(check_out_date) - toTimestamp(check_in_date) )/ 86400000,",
