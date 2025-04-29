@@ -19,7 +19,19 @@
 					"name": "SynapseForLookup"
 				}
 			],
-			"sinks": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "CustomerDataSynapse",
+						"type": "DatasetReference"
+					},
+					"name": "SynapseFactWrite",
+					"rejectedDataLinkedService": {
+						"referenceName": "AirBnBADLS",
+						"type": "LinkedServiceReference"
+					}
+				}
+			],
 			"transformations": [
 				{
 					"name": "DataQualityCheck"
@@ -34,7 +46,7 @@
 					"name": "AlterRowForUpdate"
 				},
 				{
-					"name": "select1"
+					"name": "FinalColumns"
 				}
 			],
 			"scriptLines": [
@@ -103,9 +115,60 @@
 				"     pickup: 'first',",
 				"     desc(SynapseForLookup@timestamp, true),",
 				"     broadcast: 'auto')~> LookupInSynapse",
-				"LookupInSynapse alterRow() ~> AlterRowForUpdate",
-				"AlterRowForUpdate select(skipDuplicateMapInputs: true,",
-				"     skipDuplicateMapOutputs: true) ~> select1"
+				"LookupInSynapse alterRow(insertIf(isNull(SynapseForLookup@booking_id)),",
+				"     updateIf(not(isNull(SynapseForLookup@booking_id)))) ~> AlterRowForUpdate",
+				"AlterRowForUpdate select(mapColumn(",
+				"          customer_id = DerivedColumns@customer_id,",
+				"          check_out_date = DerivedColumns@check_out_date,",
+				"          timestamp = DerivedColumns@timestamp,",
+				"          owner_id = DerivedColumns@owner_id,",
+				"          check_in_date = DerivedColumns@check_in_date,",
+				"          property_id = DerivedColumns@property_id,",
+				"          amount = DerivedColumns@amount,",
+				"          booking_id = DerivedColumns@booking_id,",
+				"          currency = DerivedColumns@currency,",
+				"          booking_date = DerivedColumns@booking_date,",
+				"          stay_duration = DerivedColumns@stay_duration,",
+				"          booking_year = DerivedColumns@booking_year,",
+				"          booking_month = DerivedColumns@booking_month,",
+				"          full_address = DerivedColumns@full_address,",
+				"          city = DerivedColumns@city,",
+				"          country = DerivedColumns@country",
+				"     ),",
+				"     skipDuplicateMapInputs: false,",
+				"     skipDuplicateMapOutputs: false) ~> FinalColumns",
+				"FinalColumns sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          customer_id as integer,",
+				"          first_name as string,",
+				"          last_name as string,",
+				"          email as string,",
+				"          phone_number as string,",
+				"          address as string,",
+				"          city as string,",
+				"          state as string,",
+				"          country as string,",
+				"          zip_code as string,",
+				"          signup_date as date,",
+				"          last_login as timestamp,",
+				"          total_bookings as integer,",
+				"          total_spent as decimal(10,2),",
+				"          preferred_language as string,",
+				"          referral_code as string,",
+				"          account_status as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:true,",
+				"     upsertable:false,",
+				"     keys:['booking_id'],",
+				"     format: 'table',",
+				"     staged: true,",
+				"     allowCopyCommand: true,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError') ~> SynapseFactWrite"
 			]
 		}
 	}
